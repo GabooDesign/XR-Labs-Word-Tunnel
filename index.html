@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/png" href="./favicon.png?v=2">
+<title>XR-Labs</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#020813;
+}
+
+body{
+  font-family:'Poppins',Arial,Helvetica,sans-serif;
+}
+
+canvas{
+  display:block;
+  width:100%;
+  height:100%;
+}
+
+.ui{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  color:white;
+}
+
+.brand{
+  position:absolute;
+  top:34px;
+  left:44px;
+  display:flex;
+  gap:20px;
+  align-items:center;
+}
+
+.logo-img{
+  width:180px;
+  height:auto;
+  display:block;
+}
+
+.tag{
+  border-left:1px solid rgba(255,255,255,.35);
+  padding-left:20px;
+  font-size:13px;
+  line-height:1.45;
+  opacity:.85;
+}
+
+.menu{
+  position:absolute;
+  top:38px;
+  right:45px;
+  font-size:13px;
+  letter-spacing:2px;
+  color:#19c5b4;
+}
+
+.footer-logos{
+  position:fixed;
+  left:50%;
+  bottom:30px;
+  transform:translateX(-50%);
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  gap:128px;
+
+  z-index:10;
+  pointer-events:none;
+}
+
+.footer-logo{
+  width: 300px;
+  height:auto;
+  display:block;
+  object-fit:contain;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="webgl"></canvas>
+
+<div class="ui">
+  <div class="brand">
+    <img class="logo-img" src="XRLabs.png" alt="XR Labs">
+    <div class="tag">
+      Laboratorio transdisciplinar<br>
+      de Realidad Virtual, Videojuegos<br>
+      y Tecnologías Emergentes.
+    </div>
+  </div>
+</div>
+
+<div class="footer-logos">
+  <img class="footer-logo" src="Logo-1.png" alt="Logo 1">
+  <img class="footer-logo" src="Logo-2.png" alt="Logo 2">
+  <img class="footer-logo" src="Logo-4.png" alt="Logo 4">
+</div>
+
+<script type="module">
+
+import * as THREE from
+  "https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js";
+
+
+// ============================================================
+// RENDERER
+// ============================================================
+
+const canvas = document.querySelector("#webgl");
+
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias:true,
+  alpha:false
+});
+
+renderer.setPixelRatio(
+  Math.min(devicePixelRatio,1.75)
+);
+
+renderer.setSize(
+  innerWidth,
+  innerHeight
+);
+
+renderer.outputColorSpace =
+  THREE.SRGBColorSpace;
+
+
+// ============================================================
+// SCENE
+// ============================================================
+
+const scene = new THREE.Scene();
+
+scene.background =
+  new THREE.Color(0x020813);
+
+scene.fog =
+  new THREE.FogExp2(
+    0x020813,
+    0.018
+  );
+
+
+// ============================================================
+// CAMERA
+// ============================================================
+
+const camera =
+  new THREE.PerspectiveCamera(
+    58,
+    innerWidth / innerHeight,
+    0.1,
+    220
+  );
+
+camera.position.set(
+  0,
+  0.5,
+  8
+);
+
+
+// ============================================================
+// TRAVEL
+// ============================================================
+
+// La cámara realmente entra en el espacio.
+// No hay un "reinicio" de cámara.
+
+const CAMERA_SPEED = 0.035;
+
+
+// Las palabras que quedan detrás de la cámara
+// vuelven a aparecer muy lejos delante de ella.
+const WORD_RESET_DISTANCE = 125;
+
+
+// ============================================================
+// GROUP
+// ============================================================
+
+const wordGroup =
+  new THREE.Group();
+
+scene.add(wordGroup);
+
+
+// ============================================================
+// WAVE GRIDS
+// ============================================================
+
+const waveGrids = [];
+
+function createWaveGrid(
+  baseY,
+  inverted = false
+){
+
+  const group =
+    new THREE.Group();
+
+  const width = 55;
+  const depth = 110;
+
+  const columns = 45;
+  const rows = 55;
+
+  const material =
+    new THREE.LineBasicMaterial({
+      color:0x087e8d,
+      transparent:true,
+      opacity:0.27
+    });
+
+
+  // ----------------------------------------------------------
+  // HORIZONTAL LINES
+  // ----------------------------------------------------------
+
+  for(let r=0;r<=rows;r++){
+
+    const geometry =
+      new THREE.BufferGeometry();
+
+    const positions =
+      new Float32Array(
+        (columns + 1) * 3
+      );
+
+    geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(
+        positions,
+        3
+      )
+    );
+
+    const line =
+      new THREE.Line(
+        geometry,
+        material
+      );
+
+    line.userData.type =
+      "horizontal";
+
+    line.userData.row =
+      r;
+
+    group.add(line);
+  }
+
+
+  // ----------------------------------------------------------
+  // VERTICAL LINES
+  // ----------------------------------------------------------
+
+  for(let c=0;c<=columns;c++){
+
+    const geometry =
+      new THREE.BufferGeometry();
+
+    const positions =
+      new Float32Array(
+        (rows + 1) * 3
+      );
+
+    geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(
+        positions,
+        3
+      )
+    );
+
+    const line =
+      new THREE.Line(
+        geometry,
+        material
+      );
+
+    line.userData.type =
+      "vertical";
+
+    line.userData.column =
+      c;
+
+    group.add(line);
+  }
+
+
+  scene.add(group);
+
+  const wave = {
+    group,
+    baseY,
+    inverted,
+    width,
+    depth,
+    columns,
+    rows
+  };
+
+  waveGrids.push(wave);
+
+  return group;
+}
+
+
+// Solo arriba y abajo.
+createWaveGrid(-6.2,false);
+createWaveGrid(6.2,true);
+
+
+// ============================================================
+// WAVE UPDATE
+// ============================================================
+
+function updateWaveGrid(
+  wave,
+  time
+){
+
+  const {
+    group,
+    baseY,
+    inverted,
+    width,
+    depth,
+    columns,
+    rows
+  } = wave;
+
+
+  group.children.forEach(
+    line => {
+
+      const position =
+        line.geometry.attributes.position;
+
+      const array =
+        position.array;
+
+
+      // --------------------------------------------------------
+      // HORIZONTAL
+      // --------------------------------------------------------
+
+      if(
+        line.userData.type ===
+        "horizontal"
+      ){
+
+        const row =
+          line.userData.row;
+
+        const z =
+          -row / rows * depth;
+
+
+        for(
+          let i=0;
+          i<=columns;
+          i++
+        ){
+
+          const x =
+            (i / columns - .5)
+            * width;
+
+
+          const distance =
+            Math.sqrt(
+              x*x +
+              Math.pow(z + 18,2)
+            );
+
+
+          const wave1 =
+            Math.sin(
+              x*.32 +
+              time*1.6
+            );
+
+          const wave2 =
+            Math.sin(
+              z*.22 -
+              time*1.1
+            );
+
+          const wave3 =
+            Math.sin(
+              distance*.42 -
+              time*2.2
+            );
+
+
+          let y =
+            wave1*.28 +
+            wave2*.18 +
+            wave3*.32;
+
+
+          // Onda que nace a lo lejos
+          // y se propaga hacia la cámara.
+          const pulseDistance =
+            Math.sqrt(
+              x*x +
+              Math.pow(z + 8,2)
+            );
+
+          const pulse =
+            Math.sin(
+              pulseDistance*.72 -
+              time*3.2
+            ) *
+            Math.exp(
+              -Math.pow(
+                pulseDistance-22,
+                2
+              ) / 95
+            );
+
+          y += pulse*.55;
+
+
+          if(inverted){
+            y *= -1;
+          }
+
+
+          array[i*3] =
+            x;
+
+          array[i*3+1] =
+            baseY + y;
+
+          array[i*3+2] =
+            z;
+        }
+      }
+
+
+      // --------------------------------------------------------
+      // VERTICAL
+      // --------------------------------------------------------
+
+      else{
+
+        const column =
+          line.userData.column;
+
+        const x =
+          (column / columns - .5)
+          * width;
+
+
+        for(
+          let j=0;
+          j<=rows;
+          j++
+        ){
+
+          const z =
+            -j / rows * depth;
+
+
+          const distance =
+            Math.sqrt(
+              x*x +
+              Math.pow(z + 18,2)
+            );
+
+
+          const wave1 =
+            Math.sin(
+              x*.32 +
+              time*1.6
+            );
+
+          const wave2 =
+            Math.sin(
+              z*.22 -
+              time*1.1
+            );
+
+          const wave3 =
+            Math.sin(
+              distance*.42 -
+              time*2.2
+            );
+
+
+          let y =
+            wave1*.28 +
+            wave2*.18 +
+            wave3*.32;
+
+
+          const pulseDistance =
+            Math.sqrt(
+              x*x +
+              Math.pow(z + 8,2)
+            );
+
+          const pulse =
+            Math.sin(
+              pulseDistance*.72 -
+              time*3.2
+            ) *
+            Math.exp(
+              -Math.pow(
+                pulseDistance-22,
+                2
+              ) / 95
+            );
+
+          y += pulse*.55;
+
+
+          if(inverted){
+            y *= -1;
+          }
+
+
+          array[j*3] =
+            x;
+
+          array[j*3+1] =
+            baseY + y;
+
+          array[j*3+2] =
+            z;
+        }
+      }
+
+
+      position.needsUpdate =
+        true;
+    }
+  );
+}
+
+
+// ============================================================
+// PARTICLES
+// ============================================================
+
+const particleCount = 900;
+
+const pgeo =
+  new THREE.BufferGeometry();
+
+const ppos =
+  new Float32Array(
+    particleCount * 3
+  );
+
+for(let i=0;i<particleCount;i++){
+
+  ppos[i*3] =
+    (Math.random()-.5)*48;
+
+  ppos[i*3+1] =
+    (Math.random()-.5)*24;
+
+  ppos[i*3+2] =
+    -Math.random()*130;
+}
+
+pgeo.setAttribute(
+  "position",
+  new THREE.BufferAttribute(
+    ppos,
+    3
+  )
+);
+
+const pmat =
+  new THREE.PointsMaterial({
+    color:0x76fff3,
+    size:.045,
+    transparent:true,
+    opacity:.6,
+    depthWrite:false
+  });
+
+const particles =
+  new THREE.Points(
+    pgeo,
+    pmat
+  );
+
+scene.add(particles);
+
+
+// ============================================================
+// TEXTURE
+// ============================================================
+
+function textTexture(
+  text,
+  fontPx=120
+){
+
+  const c =
+    document.createElement("canvas");
+
+  const ctx =
+    c.getContext("2d");
+
+
+  ctx.font =
+    `700 ${fontPx}px Poppins`;
+
+  const metrics =
+    ctx.measureText(text);
+
+
+  c.width =
+    Math.ceil(
+      metrics.width + 60
+    );
+
+  c.height =
+    fontPx + 60;
+
+
+  ctx.font =
+    `700 ${fontPx}px Poppins`;
+
+  ctx.textAlign =
+    "center";
+
+  ctx.textBaseline =
+    "middle";
+
+
+  ctx.shadowColor =
+    "rgba(80,255,245,.65)";
+
+  ctx.shadowBlur =
+    18;
+
+  ctx.fillStyle =
+    "#e8ffff";
+
+
+  ctx.fillText(
+    text,
+    c.width/2,
+    c.height/2
+  );
+
+
+  const tex =
+    new THREE.CanvasTexture(c);
+
+  tex.colorSpace =
+    THREE.SRGBColorSpace;
+
+  tex.minFilter =
+    THREE.LinearFilter;
+
+
+  return {
+    tex,
+    w:c.width,
+    h:c.height
+  };
+}
+
+
+// ============================================================
+// WORD DATA
+// ============================================================
+
+const words = [
+
+  ["REALIDAD VIRTUAL",2.3,-7.5,1.8,-105],
+  ["METAVERSOS INMERSIVOS",2.0,7.0,2.0,-88],
+  ["SONIDO ESPACIAL",1.9,9.0,-2.0,-72],
+  ["VIDEOJUEGOS",2.4,0,.2,-58],
+  ["INTELIGENCIA ARTIFICIAL",1.8,-7,-2.8,-43],
+  ["TECNOLOGÍAS EMERGENTES",1.8,8,-3.1,-28],
+  ["PATRIMONIOS DIGITALES",1.05,-9,1.2,-18],
+  ["NARRATIVAS SONORAS Y TERRITORIOS",.95,5,.9,-95],
+  ["CULTURA GAMER",1.1,8,-.2,-52],
+  ["EDUCACIÓN Y VIDEOJUEGOS",.9,-8,-.7,-78],
+  ["PERCEPCIÓN Y COGNICIÓN",.9,9,1.4,-36],
+  ["PLATAFORMA INMERSIVA XR",.8,-10,-1.6,-64],
+  ["ESCUCHA INMERSIVA",.85,-5,-1.7,-12],
+  ["CIENCIA Y TRANSDISCIPLINA",.85,3,-1.8,-100],
+  ["FOTOGRAFÍA VIRTUAL",.85,10,-1.8,-48],
+  ["COMUNIDADES VIRTUALES",.75,-3,2,-83],
+  ["POLÍTICAS CULTURALES DIGITALES",.7,4,-2.8,-33],
+  ["RED TRANSDISCIPLINAR",.75,1,2,-110],
+  ["EMERGENCIAS",.65,-1,1.3,-25],
+  ["EXPERIMENTACIÓN",.65,2,-.5,-68],
+  ["PATRIMONIO",.65,-4,.1,-50],
+  ["NARRATIVAS",.65,5,2.3,-118]
+];
+
+
+// ============================================================
+// CREATE WORD
+// ============================================================
+
+const items = [];
+
+for(
+  const [
+    text,
+    size,
+    x,
+    y,
+    z
+  ] of words
+){
+
+  const t =
+    textTexture(
+      text,
+      120
+    );
+
+
+  const material =
+    new THREE.MeshBasicMaterial({
+      map:t.tex,
+      transparent:true,
+      depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+
+
+  const mesh =
+    new THREE.Mesh(
+      new THREE.PlaneGeometry(
+        size * (t.w/t.h),
+        size
+      ),
+      material
+    );
+
+
+  mesh.position.set(
+    x,
+    y,
+    z
+  );
+
+
+  wordGroup.add(mesh);
+
+
+  items.push({
+    mesh,
+    baseX:x,
+    baseY:y,
+    size,
+    resetZ:z
+  });
+}
+
+
+// ============================================================
+// BACKGROUND WORDS
+// ============================================================
+
+const backgroundWords = [
+  "Realidad Virtual",
+  "Videojuegos",
+  "XR Labs",
+  "Cultura Gamer",
+  "Tecnologías Emergentes",
+  "Metaversos Inmersivos",
+  "Patrimonios Digitales",
+  "Inteligencia Artificial"
+];
+
+
+for(let i=0;i<35;i++){
+
+  const text =
+    backgroundWords[
+      i % backgroundWords.length
+    ];
+
+
+  const t =
+    textTexture(
+      text,
+      90
+    );
+
+
+  const material =
+    new THREE.MeshBasicMaterial({
+      map:t.tex,
+      transparent:true,
+      depthWrite:false,
+      opacity:.18,
+      blending:THREE.AdditiveBlending
+    });
+
+
+  const size =
+    .25 +
+    Math.random()*.6;
+
+
+  const mesh =
+    new THREE.Mesh(
+      new THREE.PlaneGeometry(
+        size*(t.w/t.h),
+        size
+      ),
+      material
+    );
+
+
+  const z =
+    -20 -
+    Math.random()*105;
+
+
+  mesh.position.set(
+    (Math.random()-.5)*25,
+    (Math.random()-.5)*12,
+    z
+  );
+
+
+  wordGroup.add(mesh);
+
+
+  items.push({
+    mesh,
+    baseX:mesh.position.x,
+    baseY:mesh.position.y,
+    size,
+    resetZ:z
+  });
+}
+
+
+// ============================================================
+// MAIN ANIMATION
+// ============================================================
+
+let lastTime =
+  performance.now();
+
+function animate(){
+
+  requestAnimationFrame(
+    animate
+  );
+
+
+  const now =
+    performance.now();
+
+
+  const dt =
+    Math.min(
+      (now-lastTime)/16.6667,
+      2
+    );
+
+
+  lastTime =
+    now;
+
+
+  // Tiempo continuo para las ondas.
+  // Las ondas se reciclan visualmente,
+  // mientras el espacio avanza.
+  const time =
+    now * .001;
+
+
+  // ==========================================================
+  // CAMERA ENTERS THE SPACE
+  // ==========================================================
+
+  camera.position.z -=
+    CAMERA_SPEED * dt;
+
+
+  camera.position.x =
+    Math.sin(
+      now*.00035
+    )*.18;
+
+
+  camera.position.y =
+    .45 +
+    Math.sin(
+      now*.0007
+    )*.08;
+
+
+  camera.lookAt(
+    camera.position.x,
+    camera.position.y,
+    camera.position.z - 20
+  );
+
+
+  // ==========================================================
+  // WORDS ARE STATIONARY IN WORLD SPACE
+  // ==========================================================
+  //
+  // The camera passes through them.
+  // When a word is behind the camera,
+  // it is placed far in front again.
+  //
+  // IMPORTANT:
+  // We do NOT recreate the word.
+  // We move the same mesh.
+  // ==========================================================
+
+  for(
+    const item of items
+  ){
+
+    const mesh =
+      item.mesh;
+
+
+    // Small lateral drift.
+    mesh.position.x =
+      item.baseX +
+      Math.sin(
+        now*.0006 +
+        item.baseY
+      )*.10;
+
+
+    mesh.position.y =
+      item.baseY +
+      Math.cos(
+        now*.0005 +
+        item.baseX
+      )*.07;
+
+
+    // Has the camera passed the word?
+    //
+    // Camera looks toward -Z.
+    // Therefore anything with a greater Z
+    // than the camera is behind us.
+
+    if(
+      mesh.position.z >
+      camera.position.z + 12
+    ){
+
+      // Put the SAME word far ahead.
+      mesh.position.z =
+        camera.position.z -
+        WORD_RESET_DISTANCE -
+        Math.random()*35;
+    }
+  }
+
+
+  // ==========================================================
+  // WAVE PLANES
+  // ==========================================================
+
+  for(
+    const wave of waveGrids
+  ){
+
+    // The wave surface travels with the camera.
+    wave.group.position.z =
+      camera.position.z - 5;
+
+
+    updateWaveGrid(
+      wave,
+      time
+    );
+  }
+
+
+  // ==========================================================
+  // PARTICLES
+  // ==========================================================
+
+  const pa =
+    pgeo.attributes
+      .position
+      .array;
+
+
+  for(
+    let i=0;
+    i<particleCount;
+    i++
+  ){
+
+    // Particles are also moving through the scene.
+    pa[i*3+2] +=
+      CAMERA_SPEED * dt * .7;
+
+
+    // Once they pass the camera,
+    // put them far ahead.
+    if(
+      pa[i*3+2] >
+      camera.position.z + 5
+    ){
+
+      pa[i*3+2] =
+        camera.position.z -
+        100 -
+        Math.random()*50;
+    }
+  }
+
+
+  pgeo.attributes
+    .position
+    .needsUpdate =
+    true;
+
+
+  renderer.render(
+    scene,
+    camera
+  );
+}
+
+
+// ============================================================
+// START
+// ============================================================
+
+animate();
+
+
+// ============================================================
+// RESIZE
+// ============================================================
+
+addEventListener(
+  "resize",
+  () => {
+
+    camera.aspect =
+      innerWidth /
+      innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      innerWidth,
+      innerHeight
+    );
+  }
+);
+
+</script>
+
+</body>
+</html>
